@@ -89,7 +89,7 @@ def page_DataProcess():
 # Streamlit Navigation Menu
 selected_page = option_menu(
     menu_title=None,
-    options=["Data Process", "PostgreSQL Migration", "Charts", "Insights"],
+    options=["Data Process", "PostgreSQL Migration", "Charts"],
     icons=["house", "file-earmark-text", "database", "bar-chart", "check-circle", "file-earmark-pdf"],
     menu_icon="cast",
     default_index=0,
@@ -114,48 +114,47 @@ selected_page = option_menu(
 
 
 def charts(selected_topic, db_name):
-    # Read the CSV data
+    # Read data from the PostgreSQL database
     conn = get_db_connection(db_name)
     if conn is None:
         return
 
     try:
         cursor = conn.cursor()
-
-        qry = "select * from " + selected_topic + ";"
-        
-        # Fetch and display data from the table        
+        qry = "SELECT * FROM " + selected_topic + ";"
         cursor.execute(qry)
+        colnames = [desc[0] for desc in cursor.description]
         rows = cursor.fetchall()
 
-        # Convert to pandas DataFrame for better display
-        data = pd.DataFrame(rows)
+        # Convert to a DataFrame and assign column names
+        data = pd.DataFrame(rows, columns=colnames)
+        st.write(data)  # Display data to inspect columns
         
+        # Ensure the repository_name column exists
+        if 'repository_name' not in data.columns:
+            st.error("Expected 'repository_name' column not found in data.")
+            return
 
     except Exception as e:
-        st.error(f"Error in data migration: {e}")
-    
+        st.error(f"Error in data fetching: {e}")
     finally:
         cursor.close()
         conn.close()
-    
-    # data.drop('Unnamed: 0', axis=1, inplace=True)
 
-    # Setup Matplotlib style
-   #plt.style.use('seaborn-darkgrid')
+    # Count occurrences in the 'repository_name' column
+    language_counts = data['repository_name'].value_counts().reset_index()
+    language_counts.columns = ['Repository Name', 'Frequency']
 
-    # Bar chart for popular programming languages
-    x = data['1'].value_counts()
-    language_counts_df = x.reset_index()
-    language_counts_df.columns = ['1', 'Frequency']
-
+    # Plotting the bar chart
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(language_counts_df['1'], language_counts_df['Frequency'], color='skyblue')
-    ax.set_title("Popular Programming Language")
+    ax.bar(language_counts['Repository Name'], language_counts['Frequency'], color='skyblue')
+    ax.set_title("Popular Programming Languages")
     ax.set_xlabel("Repository Name")
     ax.set_ylabel("Frequency")
-    st.pyplot(fig)
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
 
+    st.pyplot(fig)
    
 if selected_page == "Data Process":
     page_DataProcess()
@@ -163,6 +162,5 @@ elif selected_page == "PostgreSQL Migration":
     page_datamigration(False)
 elif selected_page == "Charts":
     page_datamigration(True)
-elif selected_page == "Insights":
-    page_Insights()
+
 
